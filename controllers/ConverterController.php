@@ -11,6 +11,8 @@ require_once Yii::getAlias('@vendor/setasign/fpdf/fpdf.php');
 
 class ConverterController extends Controller
 {
+
+
     public function actionIndex()
     {
         $model = new UploadForm();
@@ -21,6 +23,45 @@ class ConverterController extends Controller
     {
         $model = new UploadForm();
         $model->imageFiles = UploadedFile::getInstances($model, 'imageFiles');
+
+        if (Yii::$app->request->isAjax) {
+            Yii::$app->response->format = Response::FORMAT_JSON;
+            
+            if ($model->imageFiles && $model->validateImageFiles() && $model->validate()) {
+                try {
+                    $filePaths = $model->upload();
+                    if ($filePaths) {
+                        $pdfPath = $this->convertToPdf($filePaths);
+                        
+                        $this->cleanupFiles($filePaths);
+                        
+                        if ($pdfPath && file_exists($pdfPath)) {
+                            $pdfName = 'converted_' . date('Y-m-d_H-i-s') . '.pdf';
+                            $fileName = basename($pdfPath);
+                            
+                            return [
+                                'success' => true,
+                                'downloadUrl' => Yii::$app->request->baseUrl . '/download?file=' . $fileName,
+                                'filename' => $pdfName
+                            ];
+                        } else {
+                            return ['success' => false, 'error' => 'Ошибка при создании PDF файла.'];
+                        }
+                    } else {
+                        return ['success' => false, 'error' => 'Ошибка при загрузке файлов.'];
+                    }
+                } catch (\Exception $e) {
+                    Yii::error('PDF conversion error: ' . $e->getMessage(), __METHOD__);
+                    return ['success' => false, 'error' => 'Произошла ошибка при конвертации: ' . $e->getMessage()];
+                }
+            } else {
+                $errors = [];
+                foreach ($model->getErrors() as $field => $fieldErrors) {
+                    $errors = array_merge($errors, $fieldErrors);
+                }
+                return ['success' => false, 'error' => implode(', ', $errors)];
+            }
+        }
 
         if ($model->imageFiles && $model->validateImageFiles() && $model->validate()) {
             try {
@@ -49,9 +90,20 @@ class ConverterController extends Controller
         return $this->render('index', ['model' => $model]);
     }
 
+    public function actionDownload($file)
+    {
+        $filePath = Yii::getAlias(Yii::$app->params['uploadPath']) . DIRECTORY_SEPARATOR . $file;
+        
+        if (!file_exists($filePath) || !preg_match('/^converted_[a-f0-9]+\.pdf$/', $file)) {
+            throw new \yii\web\NotFoundHttpException('Файл не найден.');
+        }
+        
+        return $this->sendFile($filePath);
+    }
+
     private function convertToPdf($imagePaths)
     {
-        $pdf = new FPDF();
+        $pdf = new \FPDF();
         
         foreach ($imagePaths as $imagePath) {
             $imageInfo = getimagesize($imagePath);
@@ -93,11 +145,7 @@ class ConverterController extends Controller
         
         $response->content = file_get_contents($filePath);
         
-        register_shutdown_function(function() use ($filePath) {
-            if (file_exists($filePath)) {
-                unlink($filePath);
-            }
-        });
+        // Не удаляем PDF файл сразу, оставляем для скачивания
         
         return $response;
     }

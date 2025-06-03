@@ -36,6 +36,7 @@ $config = [
             'rules' => [
                 '' => 'converter/index',
                 'convert' => 'converter/convert',
+                'download' => 'converter/download',
             ],
         ],
         'assetManager' => [

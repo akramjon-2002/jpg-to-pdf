@@ -1,8 +1,84 @@
 document.addEventListener('DOMContentLoaded', function() {
     const fileInput = document.getElementById('file-input');
     const form = document.getElementById('upload-form');
+    const convertBtn = document.querySelector('button[type="submit"]');
+    const loadingDiv = document.getElementById('loading');
     
     if (fileInput && form) {
+        // Handle form submission
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const files = fileInput.files;
+            if (files.length === 0) {
+                showMessage('Пожалуйста, выберите файлы для конвертации.', 'error');
+                return;
+            }
+            
+            // Validate files
+            for (let file of files) {
+                if (!validateFileType(file)) {
+                    showMessage(`Файл ${file.name} имеет неподдерживаемый формат. Поддерживаются только JPG/JPEG.`, 'error');
+                    return;
+                }
+                if (!validateFileSize(file)) {
+                    showMessage(`Файл ${file.name} превышает максимальный размер 10MB.`, 'error');
+                    return;
+                }
+            }
+            
+            // Show loading state
+            if (convertBtn) {
+                convertBtn.disabled = true;
+                convertBtn.textContent = 'Конвертация...';
+            }
+            if (loadingDiv) {
+                loadingDiv.style.display = 'block';
+            }
+            
+            // Prepare form data
+            const formData = new FormData(form);
+            
+            // Send AJAX request
+            fetch('/convert', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = data.downloadUrl;
+                    a.download = data.filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    
+                    showMessage('PDF успешно создан и загружен!', 'success');
+                } else {
+                    showMessage(data.error || 'Произошла ошибка при конвертации.', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showMessage('Произошла ошибка при конвертации.', 'error');
+            })
+            .finally(() => {
+                resetForm();
+            });
+        });
+        
+        // Handle file input change
+        fileInput.addEventListener('change', function() {
+            const files = this.files;
+            if (files.length > 0 && convertBtn) {
+                convertBtn.disabled = false;
+            }
+        });
         fileInput.addEventListener('dragover', function(e) {
             e.preventDefault();
             e.stopPropagation();
@@ -38,9 +114,10 @@ document.addEventListener('DOMContentLoaded', function() {
         return allowedTypes.includes(file.type);
     }
     
-    function showError(message) {
+    function showMessage(message, type = 'error') {
         const alertDiv = document.createElement('div');
-        alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+        const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+        alertDiv.className = `alert ${alertClass} alert-dismissible fade show`;
         alertDiv.innerHTML = `
             ${message}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
@@ -53,5 +130,18 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         container.insertBefore(alertDiv, container.firstChild);
+    }
+    
+    function resetForm() {
+        const convertBtn = document.querySelector('button[type="submit"]');
+        const loadingDiv = document.getElementById('loading');
+        
+        if (convertBtn) {
+            convertBtn.disabled = false;
+            convertBtn.textContent = 'Конвертировать в PDF';
+        }
+        if (loadingDiv) {
+            loadingDiv.style.display = 'none';
+        }
     }
 });
