@@ -1,0 +1,32 @@
+# Yii2
+/vendor/
+/runtime/
+/web/assets/
+/uploads/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+
+# Composer
+composer.lock
+
+# Node modules (if any)
+node_modules/
+
+# Build files
+/build/
+/dist/
